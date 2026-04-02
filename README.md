@@ -282,6 +282,77 @@ python3 export.py \
 
 ---
 
+## Tuning the number of detectors
+
+Each detector is a separate process with its own ONNX `InferenceSession` running on the GPU.
+Adding more detectors increases parallel throughput — up to the point where GPU compute is saturated.
+
+### Benchmark results (GB10, YOLOv9-c 640px)
+
+| Detectors | ms / frame | Total FPS | GPU util |
+|:---------:|:----------:|:---------:|:--------:|
+| 1         | 32 ms      | 31 FPS    | ~40 %    |
+| **2**     | **28 ms**  | **71 FPS**| ~50 %    |
+| 4         | 93 ms      | 43 FPS    | ~94 %    |
+
+**2 detectors is the optimal point** for this GPU + model combination.  
+At 4 detectors the GPU is saturated and sessions start queuing — total throughput drops below the 2-detector result.
+
+Maximum demand with 10 cameras × 10 FPS = 100 FPS. Two detectors cover ~71 FPS which is sufficient for most real-world scenarios where not all cameras have simultaneous motion.
+
+### How to change
+
+Edit `config/config.yml` — add or remove entries under `detectors`. Each entry must have a unique name:
+
+```yaml
+# 1 detector
+detectors:
+  onnx0:
+    type: onnx
+
+# 2 detectors (recommended)
+detectors:
+  onnx0:
+    type: onnx
+  onnx1:
+    type: onnx
+
+# 4 detectors (GPU saturated on GB10 — not recommended)
+detectors:
+  onnx0:
+    type: onnx
+  onnx1:
+    type: onnx
+  onnx2:
+    type: onnx
+  onnx3:
+    type: onnx
+```
+
+Then restart Frigate:
+
+```bash
+docker compose restart frigate
+```
+
+Verify detectors are running and check inference speed:
+
+```bash
+curl -s http://localhost:5000/api/stats | python3 -c "
+import sys, json
+for name, d in json.load(sys.stdin)['detectors'].items():
+    print(name, d['inference_speed'], 'ms')
+"
+```
+
+Each detector allocates ~619 MiB of GPU memory. Monitor with:
+
+```bash
+nvidia-smi --query-compute-apps=pid,used_memory,name --format=csv,noheader
+```
+
+---
+
 ## How the patches work
 
 ### 1. onnxruntime `.so` filename conflict
