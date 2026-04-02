@@ -1,0 +1,155 @@
+mqtt:
+  enabled: true
+  host: mqtt
+  port: 1883
+  topic_prefix: frigate
+  client_id: frigate
+
+database:
+  path: /config/frigate.db
+
+# ONNX detector — GPU-accelerated via CUDAExecutionProvider (onnxruntime-gpu 1.24.4 CUDA 13.0)
+detectors:
+  onnx:
+    type: onnx
+
+model:
+  model_type: yolo-generic
+  path: /config/model_cache/yolov9-c-640.onnx
+  input_tensor: nchw
+  input_pixel_format: rgb
+  input_dtype: float
+  width: 640
+  height: 640
+  labelmap_path: /labelmap/coco-80.txt
+
+# GB10: use -hwaccel cuda -threads 1
+# NOTE: preset-nvidia causes pthread assertion failure (CVE-2022-48434) on GB10
+# Using -threads 1 is the confirmed fix (github.com/blakeblackshear/frigate/issues/21002)
+ffmpeg:
+  hwaccel_args:
+    - -hwaccel
+    - cuda
+    - -threads
+    - '1'
+
+birdseye:
+  enabled: true
+  mode: continuous
+
+detect:
+  enabled: true
+
+objects:
+  track:
+    - person
+    - car
+    - bicycle
+    - motorcycle
+    - dog
+    - cat
+  filters:
+    person:
+      min_area: 3000
+      min_score: 0.5
+      threshold: 0.6
+    car:
+      min_area: 5000
+      min_score: 0.5
+      threshold: 0.6
+    bicycle:
+      min_area: 2000
+      min_score: 0.5
+      threshold: 0.6
+    motorcycle:
+      min_area: 2000
+      min_score: 0.5
+      threshold: 0.6
+    dog:
+      min_area: 1000
+      min_score: 0.5
+      threshold: 0.6
+    cat:
+      min_area: 1000
+      min_score: 0.5
+      threshold: 0.6
+
+record:
+  enabled: true
+  alerts:
+    retain:
+      days: 30
+  detections:
+    retain:
+      days: 30
+  continuous:
+    days: 0
+  motion:
+    days: 7
+
+snapshots:
+  enabled: true
+  clean_copy: true
+  timestamp: true
+  bounding_box: true
+  retain:
+    default: 14
+
+# ---------------------------------------------------------------------------
+# go2rtc streams — replace YOUR_CAMERA_IP with the actual IP of each camera.
+# Format: rtsp://USERNAME:PASSWORD@YOUR_CAMERA_IP:554/Streaming/channels/101
+# Channel 101 = main stream (high res, used for recording)
+# Channel 102 = sub stream  (low res, used for detection)
+# ---------------------------------------------------------------------------
+go2rtc:
+  streams:
+    camera1_main:
+      - rtsp://admin:YOUR_PASSWORD@YOUR_CAMERA_IP:554/Streaming/channels/101
+    camera1_sub:
+      - rtsp://admin:YOUR_PASSWORD@YOUR_CAMERA_IP:554/Streaming/channels/102
+    # Add more cameras below following the same pattern:
+    # camera2_main:
+    #   - rtsp://admin:YOUR_PASSWORD@YOUR_CAMERA2_IP:554/Streaming/channels/101
+    # camera2_sub:
+    #   - rtsp://admin:YOUR_PASSWORD@YOUR_CAMERA2_IP:554/Streaming/channels/102
+
+# ---------------------------------------------------------------------------
+# cameras — one entry per camera.
+# The "path" values reference the go2rtc stream names defined above.
+# ---------------------------------------------------------------------------
+cameras:
+  camera1:
+    enabled: true
+    ffmpeg:
+      inputs:
+        - path: rtsp://127.0.0.1:8554/camera1_main
+          input_args: preset-rtsp-restream
+          roles:
+            - record
+        - path: rtsp://127.0.0.1:8554/camera1_sub
+          input_args: preset-rtsp-restream
+          roles:
+            - detect
+    detect:
+      enabled: true
+      width: 1280
+      height: 720
+      fps: 10
+    record:
+      enabled: true
+      continuous:
+        days: 7
+      motion:
+        days: 0
+    snapshots:
+      enabled: true
+      retain:
+        default: 14
+    motion:
+      threshold: 20
+      contour_area: 30
+      improve_contrast: true
+  # Add more camera blocks here following the same pattern.
+  # Each camera name must match the go2rtc stream prefix (e.g. camera2 → camera2_main / camera2_sub).
+
+version: 0.17-0

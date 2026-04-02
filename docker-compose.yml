@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+  frigate:
+    container_name: frigate
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
+    image: frigate-gb10:latest
+    restart: unless-stopped
+    privileged: true
+    shm_size: "512mb"
+    # nvidia runtime is default on DGX OS — no need to specify runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, compute, utility]
+    volumes:
+      - ./config:/config
+      - ./media:/media/frigate
+      - ./storage:/storage
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+      # CUDA 13.0 toolkit libs (cublas, cudart, cufft, etc.) — not auto-injected by nvidia-runtime
+      - /usr/local/cuda-13.0/targets/sbsa-linux/lib:/usr/local/cuda/lib64:ro
+      # cuDNN 9.x libs (only cudnn files, no libc conflict)
+      - ./cuda-libs/cudnn:/usr/local/cudnn/lib:ro
+    ports:
+      - "5000:5000"
+      - "8971:8971"
+      - "8554:8554"
+      - "8555:8555/tcp"
+      - "8555:8555/udp"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - FRIGATE_RTSP_PASSWORD=changeme
+      - LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cudnn/lib
+    depends_on:
+      - mqtt
+
+  mqtt:
+    container_name: mqtt
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    volumes:
+      - ./mqtt/config:/mosquitto/config
+      - ./mqtt/data:/mosquitto/data
+      - ./mqtt/log:/mosquitto/log
+    ports:
+      - "1883:1883"
+      - "9001:9001"

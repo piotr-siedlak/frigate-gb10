@@ -1,0 +1,19 @@
+# Runtime data
+config/frigate.db
+config/frigate.db-shm
+config/frigate.db-wal
+config/backup.db
+config/backup_config.yaml
+config/.jwt_secret
+config/.exports
+config/.search_stats.json
+config/.timeline
+config/.vacuum
+config/go2rtc_homekit.yml
+media/
+storage/
+mqtt/data/
+mqtt/log/
+
+# cuDNN libs (must be copied from host — see README Step 3)
+cuda-libs/cudnn/*.so*

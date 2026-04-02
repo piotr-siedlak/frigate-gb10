@@ -1,0 +1,4 @@
+# Copy cuDNN .so files from host here before running docker compose build.
+# See README — Step 3.
+#
+# cp /usr/lib/aarch64-linux-gnu/libcudnn*.so* cuda-libs/cudnn/
